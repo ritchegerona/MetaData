@@ -527,7 +527,17 @@
         if (v !== null && typeof v === "object" && !Array.isArray(v)) {
           rows.push(...flatten(v, key));
         } else if (Array.isArray(v)) {
-          rows.push([key, v.join(", ")]);
+          if (v.length && typeof v[0] === "object" && v[0] !== null) {
+            v.forEach((item, i) => {
+              if (item !== null && typeof item === "object") {
+                rows.push(...flatten(item, `${key}[${i}]`));
+              } else {
+                rows.push([`${key}[${i}]`, item]);
+              }
+            });
+          } else {
+            rows.push([key, v.join(", ")]);
+          }
         } else {
           rows.push([key, v ?? ""]);
         }
