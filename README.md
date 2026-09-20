@@ -35,7 +35,7 @@ Run the app and open the browser:
 python app.py
 ```
 
-Then visit `http://127.0.0.1:5000` and upload a file. The app runs with `debug=True`.
+Then visit `http://127.0.0.1:8000` and upload a file. The app runs with `debug=True` on port 8000 (port 5000 is used by macOS AirPlay Receiver by default).
 
 ## API
 
@@ -65,7 +65,7 @@ Accepts a multipart form upload with a file field named `file`. Returns:
 `type` is `"image"`, `"video"`, or `"unknown"`. The `metadata` object contents depend on the file type. Example:
 
 ```sh
-curl -F "file=@photo.jpg" http://127.0.0.1:5000/api/metadata
+curl -F "file=@photo.jpg" http://127.0.0.1:8000/api/metadata
 ```
 
 Files are limited to 100 MB.

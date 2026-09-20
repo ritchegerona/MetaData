@@ -315,6 +315,16 @@
       s.addEventListener("click", () => { applyTheme(s.dataset.name); localStorage.setItem(THEME_KEY, s.dataset.name); })
     );
 
+    // Detect file:// protocol — server is not running
+    const SERVER_BASE = location.origin.replace(/\/+$/, "");
+    const isFileProtocol = location.protocol === "file:";
+    if (isFileProtocol) {
+      const warn = document.createElement("div");
+      warn.style.cssText = "background:#fee;border:1px solid #f44;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.25rem;color:#c00;font-size:.9rem;line-height:1.5";
+      warn.innerHTML = `<strong>Server not running.</strong> Open a terminal and run:<br><code style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:.15rem .4rem;font-size:.82rem">python app.py</code><br>Then visit <a href="http://127.0.0.1:8000" style="color:#c00">http://127.0.0.1:8000</a>`;
+      document.querySelector("header").insertAdjacentElement("afterend", warn);
+    }
+
     const formatBytes = (b) => {
       if (b == null) return "—";
       if (b < 1024) return b + " B";
@@ -464,7 +474,11 @@
         renderTabs(body);
         resultCard.hidden = false;
       } catch (err) {
-        details.innerHTML = `<div class="error-box">Request failed: ${esc(err)}</div>`;
+        const isNetErr = err instanceof TypeError && /Failed to fetch/i.test(err.message);
+        const msg = isNetErr
+          ? `Could not connect to the server. Make sure it is running:<br><code style="background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:.15rem .4rem;font-size:.82rem">python app.py</code> then open <a href="http://127.0.0.1:8000" style="color:var(--accent)">http://127.0.0.1:8000</a>`
+          : `Request failed: ${esc(err)}`;
+        details.innerHTML = `<div class="error-box">${msg}</div>`;
         resultCard.hidden = false;
       } finally {
         submitBtn.innerHTML = original;
