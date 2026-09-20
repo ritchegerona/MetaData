@@ -3,7 +3,8 @@
 ## Features
 
 - Image metadata extraction via Pillow: format, mode, dimensions, and EXIF data
-- Video metadata extraction via ffprobe: codecs, resolution, duration, and raw container probe
+- Rich EXIF/IPTC/XMP extraction via ExifTool when installed (GPS, camera settings, captions); Pillow EXIF used as fallback
+- Video metadata extraction via ffprobe: codecs, resolution, duration, and raw container probe, plus ExifTool container tags
 - Web UI at `/` for upload and metadata display
 - JSON API at `POST /api/metadata` for programmatic access
 
@@ -11,6 +12,7 @@
 
 - Python 3.9+
 - System `ffmpeg`/`ffprobe` installed for video metadata support (images work without it)
+- System `exiftool` installed for rich EXIF/IPTC/XMP extraction (optional; Pillow EXIF is used as fallback)
 
 ## Installation
 
@@ -19,9 +21,11 @@ python -m venv .venv
 # macOS / Linux
 source .venv/bin/activate
 pip install -r requirements.txt
-# optional: for video support
-brew install ffmpeg
-```
+  # optional: for video support
+  brew install ffmpeg
+  # optional: for rich EXIF/IPTC/XMP support
+  brew install exiftool
+  ```
 
 ## Usage
 
@@ -40,8 +44,10 @@ Then visit `http://127.0.0.1:5000` and upload a file. The app runs with `debug=T
 Health check. Returns:
 
 ```json
-{"status": "ok"}
+{"status": "ok", "exiftool": true, "ffprobe": true}
 ```
+
+`exiftool`/`ffprobe` report whether those optional binaries are available.
 
 ### `POST /api/metadata`
 

@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 
@@ -22,6 +23,16 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".tif",
 GPS_IFD_TAG = 0x8825
 VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v", ".mpg", ".mpeg",
               ".wmv", ".flv", ".ts", ".mts", ".m2ts", ".3gp", ".mxf"}
+
+# ExifTool groups merged into image EXIF output, in ascending priority
+# (later groups override earlier ones on tag-name collisions).
+EXIF_FAMILY_GROUPS = ("Composite", "EXIF", "IFD0", "ExifIFD", "GPS",
+                      "InteropIFD", "SubIFD")
+# Groups/tags dropped from ExifTool output: temp-file artifacts and noise.
+EXIFTOOL_SKIP_GROUPS = {"ExifTool"}
+EXIFTOOL_SKIP_TAGS = {"SourceFile", "FileName", "Directory", "FileModifyDate",
+                      "FileAccessDate", "FileInodeChangeDate", "FilePermissions",
+                      "ExifToolVersion"}
 
 
 def _file_type(ext):
@@ -77,8 +88,71 @@ def _clean_exif_value(value):
         return str(value)
 
 
+def _has_exiftool():
+    """Return True when the exiftool binary is on PATH."""
+    return shutil.which("exiftool") is not None
+
+
+def _exiftool(path):
+    """Run exiftool and return its parsed JSON dict for the file.
+
+    Returns {"error": ...} when the binary is missing, times out, or fails.
+    Keys use the 'GROUP:Tag' form (via -G -s) for lossless grouping.
+    """
+    try:
+        proc = subprocess.run(["exiftool", "-j", "-G", "-s", path],
+                              capture_output=True, text=True, timeout=30)
+    except FileNotFoundError:
+        return {"error": "exiftool not installed"}
+    except subprocess.TimeoutExpired:
+        return {"error": "exiftool timed out"}
+    if proc.returncode != 0:
+        return {"error": proc.stderr.strip() or "exiftool failed"}
+    try:
+        data = json.loads(proc.stdout or "[]")
+    except json.JSONDecodeError as e:
+        return {"error": str(e)}
+    if not data:
+        return {"error": "exiftool returned no data"}
+    return data[0]
+
+
+def _group_exiftool(raw):
+    """Split a flat 'GROUP:Tag' dict into {group: {tag: value}}, sanitized."""
+    groups = {}
+    for key, value in raw.items():
+        group, sep, tag = key.partition(":")
+        if not sep:
+            group, tag = "", key
+        if group in EXIFTOOL_SKIP_GROUPS or tag in EXIFTOOL_SKIP_TAGS:
+            continue
+        value = _clean_exif_value(value)
+        if value is None:
+            continue
+        groups.setdefault(group, {})[tag] = value
+    return groups
+
+
+def _enrich_image_exif(md, raw):
+    """Merge ExifTool EXIF/IPTC/XMP groups into image metadata (in place)."""
+    groups = _group_exiftool(raw)
+    merged = {}
+    for group in EXIF_FAMILY_GROUPS:
+        merged.update(groups.get(group, {}))
+    if merged:
+        md["exif"] = merged
+    if groups.get("IPTC"):
+        md["iptc"] = groups["IPTC"]
+    xmp = {}
+    for group in sorted(groups):
+        if group == "XMP" or group.startswith("XMP-"):
+            xmp.update(groups[group])
+    if xmp:
+        md["xmp"] = xmp
+
+
 def extract_image(path, filename):
-    """Extract EXIF and format metadata from an image via Pillow."""
+    """Extract image metadata: Pillow basics + ExifTool EXIF/IPTC/XMP."""
     md = {}
     try:
         img = Image.open(path)
@@ -91,6 +165,12 @@ def extract_image(path, filename):
     md["dimensions"] = list(img.size)
     md["ext"] = os.path.splitext(filename)[1].lower()
 
+    raw = _exiftool(path) if _has_exiftool() else {"error": "exiftool not installed"}
+    if "error" not in raw:
+        _enrich_image_exif(md, raw)
+        return md
+
+    # Fallback when exiftool is unavailable: Pillow EXIF only.
     try:
         exif = img.getexif()
         if exif:
@@ -123,7 +203,7 @@ def extract_image(path, filename):
 
 
 def extract_video(path):
-    """Extract container/probe metadata from a video via ffprobe."""
+    """Extract video metadata: ffprobe streams/format + ExifTool tags."""
     try:
         probe = _ffprobe(path)
     except FileNotFoundError:
@@ -141,6 +221,16 @@ def extract_video(path):
             md.setdefault("audio_codec", stream.get("codec_name"))
             md.setdefault("audio_sample_rate", stream.get("sample_rate"))
     md.setdefault("duration", probe.get("format", {}).get("duration"))
+
+    if _has_exiftool():
+        raw = _exiftool(path)
+        if "error" not in raw:
+            groups = _group_exiftool(raw)
+            tags = {}
+            for group in sorted(groups):
+                tags.update(groups[group])
+            if tags:
+                md["tags"] = tags
     return md
 
 
@@ -167,7 +257,11 @@ def _save(file, ext):
 
 @app.route("/api/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok"}), 200
+    return jsonify({
+        "status": "ok",
+        "exiftool": _has_exiftool(),
+        "ffprobe": shutil.which("ffprobe") is not None,
+    }), 200
 
 
 @app.route("/api/metadata", methods=["POST"])

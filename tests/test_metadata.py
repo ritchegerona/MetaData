@@ -46,10 +46,13 @@ def _make_jpg_with_exif() -> bytes:
     return buf.getvalue()
 
 
-def test_health(client):
+def test_health_reports_capabilities(client):
     r = client.get("/api/health")
     assert r.status_code == 200
-    assert r.get_json()["status"] == "ok"
+    body = r.get_json()
+    assert body["status"] == "ok"
+    assert isinstance(body["exiftool"], bool)
+    assert isinstance(body["ffprobe"], bool)
 
 
 def test_no_file_returns_400(client):
@@ -115,6 +118,21 @@ def test_mp4_returns_metadata(client):
     assert "resolution" in body["metadata"]
 
 
+def test_mp4_exiftool_tags(client):
+    import shutil as _shutil
+
+    if _shutil.which("exiftool") is None:
+        pytest.skip("exiftool not installed")
+    mp4 = _make_tiny_mp4()
+    r = _upload(client, "video.mp4", mp4)
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["type"] == "video"
+    assert "codec" in body["metadata"]  # ffprobe primary intact
+    assert isinstance(body["metadata"].get("tags"), dict)
+    assert len(body["metadata"]["tags"]) > 0
+
+
 def test_unsupported_file_type(client):
     r = _upload(client, "readme.txt", b"hello world")
     assert r.status_code == 200
@@ -138,6 +156,23 @@ def _make_jpg_with_gps_exif() -> bytes:
 
 
 def test_jpg_gps_exif_is_decoded(client):
+    import shutil as _shutil
+
+    if _shutil.which("exiftool") is None:
+        pytest.skip("exiftool not installed")
+    jpg = _make_jpg_with_gps_exif()
+    r = _upload(client, "photo.jpg", jpg)
+    assert r.status_code == 200
+    body = r.get_json()
+    exif = body["metadata"]["exif"]
+    assert exif["GPSLatitudeRef"] == "North"  # exiftool print-converted
+    assert "GPSLatitude" in exif
+
+
+def test_jpg_pillow_fallback_without_exiftool(client, monkeypatch):
+    import app as app_module
+
+    monkeypatch.setattr(app_module, "_has_exiftool", lambda: False)
     jpg = _make_jpg_with_gps_exif()
     r = _upload(client, "photo.jpg", jpg)
     assert r.status_code == 200
@@ -146,6 +181,18 @@ def test_jpg_gps_exif_is_decoded(client):
     assert isinstance(gps, dict)
     assert gps["GPSLatitudeRef"] == "N"
     assert list(gps["GPSLatitude"]) == [37, 46, 30]
+
+
+def test_jpg_exiftool_enrichment(client):
+    import shutil as _shutil
+
+    if _shutil.which("exiftool") is None:
+        pytest.skip("exiftool not installed")
+    jpg = _make_jpg_with_gps_exif()
+    r = _upload(client, "photo.jpg", jpg)
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["metadata"]["exif"]["Make"] == "TestMake"
 
 
 def test_heic_returns_metadata(client):

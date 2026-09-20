@@ -367,6 +367,15 @@
 
     const isObjectLike = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 
+    const DICT_TITLES = { exif: "EXIF", iptc: "IPTC", xmp: "XMP", tags: "Tags" };
+    const titleFor = (k) =>
+      DICT_TITLES[k] || (k.length <= 4 ? k.toUpperCase() : k[0].toUpperCase() + k.slice(1));
+    const fmtVal = (k, v) => {
+      if (v !== null && typeof v === "object") return JSON.stringify(v);
+      if (typeof k === "string" && k.toLowerCase().includes("duration")) return formatDuration(v);
+      return v;
+    };
+
     function renderDetails(body) {
       const filetype = body.type;
       const md = body.metadata || {};
@@ -382,18 +391,19 @@
         details.innerHTML = html;
         return;
       }
-      const known = new Set(["raw", "exif", "error", "exif_error", "dimensions"]);
+      const known = new Set(["raw", "exif", "iptc", "xmp", "tags", "error", "exif_error", "dimensions"]);
       const groups = [];
       const general = [];
       for (const [k, v] of Object.entries(md)) {
         if (known.has(k) || isObjectLike(v) || Array.isArray(v)) continue;
-        general.push(kv(k, k.toLowerCase().includes("duration") ? formatDuration(v) : v));
+        general.push(kv(k, fmtVal(k, v)));
       }
       if (general.length) groups.push(["File details", general.join("")]);
       if (Array.isArray(md.dimensions)) groups.push(["Dimensions", kv("Width", md.dimensions[0]) + kv("Height", md.dimensions[1])]);
-      if (isObjectLike(md.exif)) {
-        const exif = Object.entries(md.exif).map(([k, v]) => kv(k, v)).join("");
-        groups.push([`EXIF (${Object.keys(md.exif).length})`, exif]);
+      for (const [k, v] of Object.entries(md)) {
+        if (!isObjectLike(v) || k === "raw") continue;
+        const rows = Object.entries(v).map(([sk, sv]) => kv(sk, fmtVal(sk, sv))).join("");
+        if (rows) groups.push([`${titleFor(k)} (${Object.keys(v).length})`, rows]);
       }
       if (isObjectLike(md.raw)) {
         const f = md.raw.format || {};
