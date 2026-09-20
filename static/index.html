@@ -232,6 +232,17 @@
 
     .raw-section { display: none; }
     .raw-section.show { display: block; }
+
+    .export-bar {
+      display: flex; align-items: center; gap: .45rem; flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+    .export-label { font-size: .78rem; color: var(--text-2); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-right: .2rem; }
+    .export-btn {
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      padding: .4rem .75rem; border-radius: 8px; font-size: .8rem; font-weight: 600;
+    }
+    .export-btn:hover { background: var(--surface-2); border-color: var(--accent); color: var(--accent); }
     @media (max-width: 520px) {
       .theme-bar span { display: none; }
       .wrap { padding: 1.25rem 1rem 3rem; }
@@ -240,6 +251,7 @@
 </head>
 <body data-theme="light">
   <div class="wrap">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
     <header>
       <div class="brand">
         <div class="logo">M</div>
@@ -278,6 +290,14 @@
     </div>
 
     <div class="card result" id="result" hidden>
+      <div class="export-bar" id="exportBar">
+        <span class="export-label">Export as:</span>
+        <button class="export-btn" data-fmt="txt">TXT</button>
+        <button class="export-btn" data-fmt="md">Markdown</button>
+        <button class="export-btn" data-fmt="csv">CSV</button>
+        <button class="export-btn" data-fmt="json">JSON</button>
+        <button class="export-btn" data-fmt="pdf">PDF</button>
+      </div>
       <div class="tabs" role="tablist">
         <button class="tab active" data-tab="details" role="tab">Details</button>
         <button class="tab" data-tab="raw" role="tab">Raw JSON</button>
@@ -494,6 +514,92 @@
         setTimeout(() => { $("copyBtn").textContent = "Copy JSON"; }, 1200);
       } catch { $("copyBtn").textContent = "Copy failed"; }
     });
+
+    // ── Export logic ──────────────────────────────────────────────
+    let lastBody = null;
+    const _origRender = renderDetails;
+    renderDetails = function(body) { lastBody = body; _origRender(body); };
+
+    const flatten = (obj, prefix = "") => {
+      const rows = [];
+      for (const [k, v] of Object.entries(obj || {})) {
+        const key = prefix ? `${prefix}.${k}` : k;
+        if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+          rows.push(...flatten(v, key));
+        } else if (Array.isArray(v)) {
+          rows.push([key, v.join(", ")]);
+        } else {
+          rows.push([key, v ?? ""]);
+        }
+      }
+      return rows;
+    };
+
+    const download = (name, text, mime) => {
+      const blob = new Blob([text], { type: mime });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+
+    const stem = (name) => name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9._-]/g, "_");
+
+    const exportTxt = (body) => {
+      const lines = [`Filename: ${body.filename}`, `Type: ${body.type}`, `Size: ${body.size} bytes`, ""];
+      for (const [k, v] of flatten(body.metadata)) lines.push(`${k}: ${v}`);
+      download(`${stem(body.filename)}.txt`, lines.join("\n"), "text/plain");
+    };
+
+    const exportMd = (body) => {
+      const rows = flatten(body.metadata);
+      let md = `# Metadata — ${body.filename}\n\n| Key | Value |\n|-----|-------|\n`;
+      for (const [k, v] of rows) md += `| ${k} | ${v} |\n`;
+      download(`${stem(body.filename)}.md`, md, "text/markdown");
+    };
+
+    const exportCsv = (body) => {
+      const rows = flatten(body.metadata);
+      const csvEscape = (s) => `"${String(s).replace(/"/g, '""')}"`;
+      let csv = "Key,Value\n";
+      for (const [k, v] of rows) csv += `${csvEscape(k)},${csvEscape(v)}\n`;
+      download(`${stem(body.filename)}.csv`, csv, "text/csv");
+    };
+
+    const exportPdf = (body) => {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.text(`Metadata — ${body.filename}`, 14, 20);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.text(`Type: ${body.type}  |  Size: ${body.size} bytes`, 14, 28);
+      const rows = flatten(body.metadata);
+      let y = 40;
+      doc.setFont("helvetica", "bold");
+      for (const [k, v] of rows) {
+        if (y > 275) { doc.addPage(); y = 20; }
+        doc.setFont("helvetica", "bold");
+        doc.text(k, 14, y);
+        doc.setFont("helvetica", "normal");
+        const val = String(v ?? "");
+        const lines = doc.splitTextToSize(val, 160);
+        doc.text(lines, 70, y);
+        y += Math.max(lines.length * 5, 6) + 2;
+      }
+      doc.save(`${stem(body.filename)}.pdf`);
+    };
+
+    const exportJson = (body) => {
+      download(`${stem(body.filename)}.json`, JSON.stringify(body, null, 2), "application/json");
+    };
+
+    const exporters = { txt: exportTxt, md: exportMd, csv: exportCsv, json: exportJson, pdf: exportPdf };
+    document.querySelectorAll(".export-btn").forEach((btn) =>
+      btn.addEventListener("click", () => { if (lastBody) exporters[btn.dataset.fmt](lastBody); })
+    );
   </script>
 </body>
 </html>
