@@ -5,30 +5,470 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MetaData</title>
   <style>
-    body { font-family: -apple-system, sans-serif; max-width: 680px; margin: 2rem auto; padding: 0 1rem; }
-    input[type="file"] { width: 100%; }
-    pre { background: #f4f4f4; padding: 1rem; overflow: auto; }
+    :root {
+      --bg: #f5f6fa;
+      --surface: #ffffff;
+      --surface-2: #f0f1f6;
+      --border: #e2e4ec;
+      --text: #1c2030;
+      --text-2: #5a6072;
+      --accent: #4f46e5;
+      --accent-2: #6366f1;
+      --ok: #16a34a;
+      --warn: #ea580c;
+      --err: #dc2626;
+      --shadow: 0 1px 3px rgba(20, 24, 40, .08);
+      --shadow-lg: 0 10px 30px rgba(20, 24, 40, .14);
+      --radius: 12px;
+    }
+    [data-theme="dark"] {
+      --bg: #111318;
+      --surface: #1b1e27;
+      --surface-2: #232734;
+      --border: #2e3345;
+      --text: #e9ebf4;
+      --text-2: #9aa1b6;
+      --accent: #818cf8;
+      --accent-2: #a5b4fc;
+      --shadow: 0 1px 3px rgba(0, 0, 0, .4);
+      --shadow-lg: 0 10px 30px rgba(0, 0, 0, .5);
+    }
+    [data-theme="ocean"] {
+      --bg: #f0f6fc;
+      --surface: #ffffff;
+      --surface-2: #eaf1f9;
+      --border: #d8e4f0;
+      --text: #0f2438;
+      --text-2: #4d6a82;
+      --accent: #0284c7;
+      --accent-2: #38bdf8;
+    }
+    [data-theme="forest"] {
+      --bg: #f2f7f3;
+      --surface: #ffffff;
+      --surface-2: #e9f2eb;
+      --border: #d6e6da;
+      --text: #13251a;
+      --text-2: #4d6b58;
+      --accent: #16a34a;
+      --accent-2: #4ade80;
+    }
+    [data-theme="sunset"] {
+      --bg: #fbf3f0;
+      --surface: #ffffff;
+      --surface-2: #f8eae4;
+      --border: #f0d8cf;
+      --text: #331a12;
+      --text-2: #8a5342;
+      --accent: #ea580c;
+      --accent-2: #fb923c;
+    }
+    [data-theme="mono"] {
+      --bg: #f6f6f6;
+      --surface: #ffffff;
+      --surface-2: #ececec;
+      --border: #dcdcdc;
+      --text: #1a1a1a;
+      --text-2: #666;
+      --accent: #333;
+      --accent-2: #888;
+      --shadow: 0 1px 3px rgba(0, 0, 0, .1);
+      --shadow-lg: 0 10px 30px rgba(0, 0, 0, .16);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      transition: background .25s, color .25s;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; margin-bottom: 1.75rem; flex-wrap: wrap;
+    }
+    .brand { display: flex; align-items: center; gap: .65rem; }
+    .logo {
+      width: 40px; height: 40px; border-radius: 10px; flex: none;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 1.15rem;
+    }
+    .title { font-size: 1.35rem; font-weight: 700; margin: 0; }
+    .subtitle { margin: .15rem 0 0; color: var(--text-2); font-size: .85rem; }
+
+    .theme-bar { display: flex; align-items: center; gap: .45rem; }
+    .theme-bar span { font-size: .75rem; color: var(--text-2); margin-right: .2rem; }
+    .swatch {
+      width: 26px; height: 26px; border-radius: 50%; cursor: pointer;
+      border: 2px solid var(--border); transition: transform .15s, box-shadow .15s, border-color .15s;
+      padding: 0;
+    }
+    .swatch:hover { transform: scale(1.12); }
+    .swatch.active { border-color: var(--text); box-shadow: 0 0 0 3px var(--surface-2); }
+    .swatch[data-name="light"] { background: linear-gradient(135deg, #f5f6fa, #4f46e5); }
+    .swatch[data-name="dark"] { background: linear-gradient(135deg, #181b22, #818cf8); }
+    .swatch[data-name="ocean"] { background: linear-gradient(135deg, #eaf1f9, #0284c7); }
+    .swatch[data-name="forest"] { background: linear-gradient(135deg, #e9f2eb, #16a34a); }
+    .swatch[data-name="sunset"] { background: linear-gradient(135deg, #f8eae4, #ea580c); }
+    .swatch[data-name="mono"] { background: linear-gradient(135deg, #ececec, #333); }
+
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.5rem;
+    }
+    .card + .card { margin-top: 1.25rem; }
+
+    .dropzone {
+      border: 2px dashed var(--border); border-radius: var(--radius);
+      padding: 2.5rem 1.5rem; text-align: center; cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    .dropzone:hover, .dropzone.drag {
+      border-color: var(--accent); background: var(--surface-2);
+    }
+    .dropzone .dz-icon { font-size: 1.6rem; }
+    .dropzone p { margin: .5rem 0 0; color: var(--text-2); }
+    .dropzone p strong { color: var(--accent); }
+    .file-meta { margin-top: .6rem; font-size: .85rem; }
+    .selected {
+      margin-top: 1rem; display: none; align-items: center; gap: .75rem;
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 10px; padding: .75rem 1rem;
+    }
+    .selected.show { display: flex; }
+    .selected .fname { font-weight: 600; word-break: break-all; }
+    .selected .fsize { color: var(--text-2); font-size: .8rem; white-space: nowrap; }
+    .selected .fclose { margin-left: auto; cursor: pointer; border: 0; background: none; color: var(--text-2); font-size: 1.1rem; }
+    .selected .fclose:hover { color: var(--err); }
+
+    .actions { margin-top: 1.25rem; display: flex; gap: .75rem; align-items: center; }
+    button {
+      font: inherit; cursor: pointer; border-radius: 10px;
+      transition: transform .1s, background .2s, opacity .2s;
+    }
+    .primary {
+      border: 0; background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #fff; padding: .7rem 1.4rem; font-weight: 600;
+    }
+    .primary:hover { transform: translateY(-1px); }
+    .primary:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .ghost {
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      padding: .7rem 1.1rem;
+    }
+    .ghost:hover { background: var(--surface-2); }
+    .hint { color: var(--text-2); font-size: .8rem; }
+
+    .spinner {
+      width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--surface-2);
+      border-top-color: var(--accent); animation: spin .7s linear infinite;
+      display: inline-block; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .result h2 { margin: 0 0 1rem; font-size: 1.05rem; }
+    .badge {
+      display: inline-block; padding: .2rem .6rem; border-radius: 999px;
+      font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+    }
+    .badge.image { background: rgba(22, 163, 74, .14); color: var(--ok); }
+    .badge.video { background: rgba(2, 132, 199, .14); color: var(--accent); }
+    .badge.unknown { background: rgba(234, 88, 12, .14); color: var(--warn); }
+    .badge.error { background: rgba(220, 38, 38, .14); color: var(--err); }
+
+    .file-row {
+      display: flex; align-items: center; gap: .8rem; flex-wrap: wrap;
+      border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1rem;
+    }
+    .file-row .fname { font-weight: 600; word-break: break-all; }
+    .file-row .fsize { color: var(--text-2); font-size: .85rem; }
+
+    .tabs { display: flex; gap: .35rem; border-bottom: 1px solid var(--border); margin-bottom: 1.1rem; }
+    .tab {
+      border: 0; background: none; color: var(--text-2); padding: .5rem .9rem;
+      border-radius: 8px 8px 0 0; font-weight: 600; font-size: .9rem;
+    }
+    .tab.active { color: var(--accent); background: var(--surface-2); }
+    .tab:hover { color: var(--text); }
+
+    .section { margin-bottom: 1.25rem; }
+    .section:last-child { margin-bottom: 0; }
+    .section h3 {
+      margin: 0 0 .55rem; font-size: .78rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em; color: var(--text-2);
+      display: flex; align-items: center; gap: .5rem;
+    }
+    .section h3::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+    .grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .6rem;
+    }
+    .kv {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 9px; padding: .55rem .7rem; min-width: 0;
+    }
+    .kv .k {
+      font-size: .72rem; color: var(--text-2); text-transform: uppercase;
+      letter-spacing: .04em; margin: 0 0 .2rem; overflow-wrap: break-word;
+    }
+    .kv .v { font-size: .92rem; font-weight: 600; overflow-wrap: break-word; }
+
+    .error-box {
+      background: rgba(220, 38, 38, .08); border: 1px solid rgba(220, 38, 38, .3);
+      color: var(--err); border-radius: 10px; padding: .9rem 1rem;
+    }
+
+    pre.json {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1rem; overflow: auto; margin: 0;
+      font-size: .8rem; line-height: 1.5;
+    }
+    .pre-head { display: flex; justify-content: flex-end; margin-bottom: .5rem; }
+    pre.json + .jump { margin-top: .5rem; }
+
+    .empty-note { color: var(--text-2); font-size: .9rem; text-align: center; padding: 1.5rem 0; }
+
+    .raw-section { display: none; }
+    .raw-section.show { display: block; }
+    @media (max-width: 520px) {
+      .theme-bar span { display: none; }
+      .wrap { padding: 1.25rem 1rem 3rem; }
+    }
   </style>
 </head>
-<body>
-  <h1>MetaData</h1>
-  <form id="upload">
-    <input type="file" name="file" required>
-    <button type="submit">Extract metadata</button>
-  </form>
-  <pre id="result"></pre>
+<body data-theme="light">
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <div class="logo">M</div>
+        <div>
+          <h1 class="title">MetaData</h1>
+          <p class="subtitle">Extract image &amp; video metadata</p>
+        </div>
+      </div>
+      <div class="theme-bar" role="group" aria-label="Color theme">
+        <span>Theme</span>
+        <button class="swatch active" data-name="light" title="Light" aria-label="Light theme"></button>
+        <button class="swatch" data-name="dark" title="Dark" aria-label="Dark theme"></button>
+        <button class="swatch" data-name="ocean" title="Ocean" aria-label="Ocean theme"></button>
+        <button class="swatch" data-name="forest" title="Forest" aria-label="Forest theme"></button>
+        <button class="swatch" data-name="sunset" title="Sunset" aria-label="Sunset theme"></button>
+        <button class="swatch" data-name="mono" title="Mono" aria-label="Mono theme"></button>
+      </div>
+    </header>
+
+    <div class="card">
+      <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Choose or drop a file">
+        <div class="dz-icon">&#128196;</div>
+        <p><strong>Choose a file</strong> or drag &amp; drop here</p>
+        <p>Images (jpg, png, gif, webp, …) · Videos (mp4, mov, mkv, …)</p>
+      </div>
+      <input type="file" id="file" hidden>
+      <div class="selected" id="selected">
+        <span class="fname" id="sname"></span>
+        <span class="fsize" id="ssize"></span>
+        <button class="fclose" id="sclear" title="Clear file" aria-label="Clear file">&#10005;</button>
+      </div>
+      <div class="actions">
+        <button class="primary" id="submit" disabled>Extract metadata</button>
+        <span class="hint">Max 100 MB</span>
+      </div>
+    </div>
+
+    <div class="card result" id="result" hidden>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="details" role="tab">Details</button>
+        <button class="tab" data-tab="raw" role="tab">Raw JSON</button>
+      </div>
+      <div id="details"></div>
+      <div class="raw-section" id="rawSection">
+        <div class="pre-head">
+          <button class="ghost" id="copyBtn">Copy JSON</button>
+        </div>
+        <pre class="json" id="raw"></pre>
+      </div>
+    </div>
+  </div>
+
   <script>
-    const form = document.getElementById("upload");
-    const result = document.getElementById("result");
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const data = new FormData(form);
-      try {
-        const res = await fetch("/api/metadata", { method: "POST", body: data });
-        result.textContent = JSON.stringify(await res.json(), null, 2);
-      } catch (err) {
-        result.textContent = "Error: " + err;
+    const $ = (id) => document.getElementById(id);
+    const dropzone = $("dropzone"), fileInput = $("file");
+    const selected = $("selected"), submitBtn = $("submit");
+    const resultCard = $("result"), details = $("details");
+    const rawSection = $("rawSection"), rawPre = $("raw");
+    let currentFile = null;
+    let rawJson = "";
+    let activeTab = "details";
+
+    const THEME_KEY = "metadata-theme";
+    const loadTheme = () => localStorage.getItem(THEME_KEY) || "light";
+    const applyTheme = (t) => {
+      document.body.dataset.theme = t;
+      document.querySelectorAll(".swatch").forEach((s) =>
+        s.classList.toggle("active", s.dataset.name === t)
+      );
+    };
+    applyTheme(loadTheme());
+    document.querySelectorAll(".swatch").forEach((s) =>
+      s.addEventListener("click", () => { applyTheme(s.dataset.name); localStorage.setItem(THEME_KEY, s.dataset.name); })
+    );
+
+    const formatBytes = (b) => {
+      if (b == null) return "—";
+      if (b < 1024) return b + " B";
+      const units = ["KB", "MB", "GB"];
+      let i = -1;
+      do { b /= 1024; i++; } while (b >= 1024 && i < units.length - 1);
+      return b.toFixed(b >= 100 ? 0 : 1) + " " + units[i];
+    };
+    const formatDuration = (s) => {
+      if (s == null) return "—";
+      s = Number(s);
+      if (Number.isNaN(s)) return String(s);
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+      const mm = String(m).padStart(2, "0");
+      const ss = sec.toFixed(sec % 1 ? 3 : 0).padStart(sec % 1 ? 6 : 2, "0");
+      return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+    };
+    const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    const openFile = (f) => {
+      if (!f) return;
+      currentFile = f;
+      $("sname").textContent = f.name;
+      $("ssize").textContent = formatBytes(f.size);
+      selected.classList.add("show");
+      submitBtn.disabled = false;
+      resultCard.hidden = true;
+    };
+    const clearFile = () => {
+      currentFile = null;
+      fileInput.value = "";
+      selected.classList.remove("show");
+      submitBtn.disabled = true;
+      resultCard.hidden = true;
+    };
+
+    dropzone.addEventListener("click", () => fileInput.click());
+    dropzone.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } });
+    fileInput.addEventListener("change", () => openFile(fileInput.files[0]));
+    $("sclear").addEventListener("click", clearFile);
+    ["dragenter", "dragover"].forEach((ev) => dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.add("drag"); }));
+    ["dragleave", "drop"].forEach((ev) => dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.remove("drag"); }));
+    dropzone.addEventListener("drop", (e) => openFile(e.dataTransfer.files[0]));
+
+    const kv = (k, v) =>
+      `<div class="kv"><p class="k">${esc(k)}</p><p class="v">${v === "" ? "—" : esc(v)}</p></div>`;
+
+    const section = (title, html) =>
+      `<div class="section"><h3>${esc(title)}</h3><div class="grid">${html}</div></div>`;
+
+    const isObjectLike = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+
+    function renderDetails(body) {
+      const filetype = body.type;
+      const md = body.metadata || {};
+      let html = `
+        <h2>Result</h2>
+        <div class="file-row">
+          <span class="fname">${esc(body.filename)}</span>
+          <span class="badge ${esc(filetype)}">${esc(filetype)}</span>
+          <span class="fsize">${formatBytes(body.size)}</span>
+        </div>`;
+      if (md.error) {
+        html += `<div class="error-box">${esc(md.error)}</div>`;
+        details.innerHTML = html;
+        return;
       }
+      const known = new Set(["raw", "exif", "error", "exif_error", "dimensions"]);
+      const groups = [];
+      const general = [];
+      for (const [k, v] of Object.entries(md)) {
+        if (known.has(k) || isObjectLike(v) || Array.isArray(v)) continue;
+        general.push(kv(k, k.toLowerCase().includes("duration") ? formatDuration(v) : v));
+      }
+      if (general.length) groups.push(["File details", general.join("")]);
+      if (Array.isArray(md.dimensions)) groups.push(["Dimensions", kv("Width", md.dimensions[0]) + kv("Height", md.dimensions[1])]);
+      if (isObjectLike(md.exif)) {
+        const exif = Object.entries(md.exif).map(([k, v]) => kv(k, v)).join("");
+        groups.push([`EXIF (${Object.keys(md.exif).length})`, exif]);
+      }
+      if (isObjectLike(md.raw)) {
+        const f = md.raw.format || {};
+        const streams = (md.raw.streams || []).map((s) => ({
+          type: s.codec_type,
+          codec: s.codec_name,
+          width: s.width,
+          height: s.height,
+          bitrate: s.bit_rate,
+        }));
+        const tags = f.tags ? Object.entries(f.tags).map(([k, v]) => kv(k, v)).join("") : "";
+        const sid = streams.map((s) =>
+          kv("Stream type", s.type) + kv("Codec", s.codec) +
+          (s.width ? kv("Width", s.width) : "") + (s.height ? kv("Height", s.height) : "") +
+          kv("Bitrate", s.bitrate ?? "—")
+        ).join("");
+        if (Object.keys(tags).length) groups.push(["Container tags", tags]);
+        if (sid) groups.push(["Streams", sid]);
+      }
+      if (!groups.length) {
+        groups.push(["Metadata", Object.entries(md).map(([k, v]) => kv(k, v)).join("")]);
+      }
+      html += groups.map(([t, g]) => section(t, g)).join("");
+      details.innerHTML = html;
+    }
+
+    function switchTab(name) {
+      activeTab = name;
+      document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+      details.style.display = name === "details" ? "" : "none";
+      rawSection.classList.toggle("show", name === "raw");
+    }
+    document.querySelectorAll(".tab").forEach((t) =>
+      t.addEventListener("click", () => switchTab(t.dataset.tab))
+    );
+
+    function renderTabs(body) {
+      rawJson = JSON.stringify(body, null, 2);
+      rawPre.textContent = rawJson;
+    }
+
+    async function extract() {
+      if (!currentFile || submitBtn.disabled) return;
+      const original = submitBtn.innerHTML;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="spinner"></span> Extracting…';
+      const fd = new FormData();
+      fd.append("file", currentFile);
+      try {
+        const res = await fetch("/api/metadata", { method: "POST", body: fd });
+        const body = await res.json();
+        if (!res.ok) {
+          details.innerHTML = `<div class="error-box">${esc(body.error || ("HTTP " + res.status))}</div>`;
+          resultCard.hidden = false;
+          return;
+        }
+        renderDetails(body);
+        renderTabs(body);
+        resultCard.hidden = false;
+      } catch (err) {
+        details.innerHTML = `<div class="error-box">Request failed: ${esc(err)}</div>`;
+        resultCard.hidden = false;
+      } finally {
+        submitBtn.innerHTML = original;
+        submitBtn.disabled = false;
+      }
+    }
+    submitBtn.addEventListener("click", extract);
+
+    $("copyBtn").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(rawJson);
+        $("copyBtn").textContent = "Copied!";
+        setTimeout(() => { $("copyBtn").textContent = "Copy JSON"; }, 1200);
+      } catch { $("copyBtn").textContent = "Copy failed"; }
     });
   </script>
 </body>
