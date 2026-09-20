@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="static/logo.svg" width="80" height="80" alt="MetaScope logo">
+  <img src="static/logo.png" width="80" height="80" alt="MetaScope logo">
 </p>
 
 <h1 align="center">MetaScope</h1>
@@ -206,7 +206,7 @@ Run the test suite (ffmpeg must be installed for the video test):
 app.py               Flask application and metadata extraction
 static/
   index.html         Web UI (upload, themes, tabs, export)
-  logo.svg           MetaScope brand mark
+  logo.png           MetaScope brand mark
 tests/
   test_metadata.py   pytest test suite
 requirements.txt     Python dependencies
