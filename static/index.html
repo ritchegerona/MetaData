@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MetaData</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; max-width: 680px; margin: 2rem auto; padding: 0 1rem; }
+    input[type="file"] { width: 100%; }
+    pre { background: #f4f4f4; padding: 1rem; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>MetaData</h1>
+  <form id="upload">
+    <input type="file" name="file" required>
+    <button type="submit">Extract metadata</button>
+  </form>
+  <pre id="result"></pre>
+  <script>
+    const form = document.getElementById("upload");
+    const result = document.getElementById("result");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const data = new FormData(form);
+      try {
+        const res = await fetch("/api/metadata", { method: "POST", body: data });
+        result.textContent = JSON.stringify(await res.json(), null, 2);
+      } catch (err) {
+        result.textContent = "Error: " + err;
+      }
+    });
+  </script>
+</body>
+</html>
