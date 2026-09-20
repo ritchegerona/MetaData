@@ -122,3 +122,43 @@ def test_unsupported_file_type(client):
     assert body["type"] == "unknown"
     assert body["size"] == len(b"hello world")
     assert "error" in body["metadata"]
+
+
+def _make_jpg_with_gps_exif() -> bytes:
+    """Create a JPEG with decoded GPS EXIF (like a phone photo)."""
+    from PIL import Image
+
+    img = Image.new("RGB", (4, 3), "blue")
+    exif = img.getexif()
+    exif[271] = "TestMake"
+    exif.get_ifd(0x8825).update({1: "N", 2: (37, 46, 30), 3: "W", 4: (122, 25, 10)})
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", exif=exif)
+    return buf.getvalue()
+
+
+def test_jpg_gps_exif_is_decoded(client):
+    jpg = _make_jpg_with_gps_exif()
+    r = _upload(client, "photo.jpg", jpg)
+    assert r.status_code == 200
+    body = r.get_json()
+    gps = body["metadata"]["exif"]["GPSInfo"]
+    assert isinstance(gps, dict)
+    assert gps["GPSLatitudeRef"] == "N"
+    assert list(gps["GPSLatitude"]) == [37, 46, 30]
+
+
+def test_heic_returns_metadata(client):
+    pillow_heif = pytest.importorskip("pillow_heif")
+    from PIL import Image
+
+    heif = pillow_heif.from_pillow(Image.new("RGB", (8, 6), "green"))
+    buf = io.BytesIO()
+    heif.save(buf, format="HEIF")
+    data = buf.getvalue()
+    r = _upload(client, "photo.heic", data)
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["type"] == "image"
+    assert body["size"] == len(data)
+    assert body["metadata"]["dimensions"] == [8, 6]

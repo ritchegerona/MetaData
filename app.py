@@ -5,11 +5,21 @@ import tempfile
 
 from flask import Flask, jsonify, request
 from PIL import Image
+from PIL.ExifTags import GPSTAGS, TAGS
+
+try:  # optional: enables HEIC/HEIF (e.g. iPhone photos)
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+except ImportError:
+    pass
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
 
-IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".tif"}
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".tif",
+              ".heic", ".heif", ".heics", ".heifs", ".avif", ".avifs"}
+GPS_IFD_TAG = 0x8825
 VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v", ".mpg", ".mpeg",
               ".wmv", ".flv", ".ts", ".mts", ".m2ts", ".3gp", ".mxf"}
 
@@ -33,6 +43,40 @@ def _json_response(filename, filetype, metadata, size):
     }
 
 
+def _clean_exif_value(value):
+    """Convert an EXIF value to something JSON-safe; None means skip."""
+    if isinstance(value, bytes):
+        try:
+            value = value.decode("utf-8", "strict").strip().strip("\x00")
+        except UnicodeDecodeError:
+            return None  # binary blob (e.g. MakerNote), not displayable
+    if isinstance(value, str):
+        value = value.strip().strip("\x00")
+        if value and not any(c.isprintable() for c in value):
+            return None  # control-char junk (e.g. raw GPS version bytes)
+        return value
+    if isinstance(value, dict):
+        cleaned = {}
+        for k, v in value.items():
+            c = _clean_exif_value(v)
+            if c is not None:
+                cleaned[k] = c
+        return cleaned
+    if isinstance(value, (tuple, list)):
+        cleaned = []
+        for v in value:
+            c = _clean_exif_value(v)
+            if c is not None:
+                cleaned.append(c)
+        return cleaned
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    try:
+        return float(value)  # IFDRational and other rationals
+    except (TypeError, ValueError):
+        return str(value)
+
+
 def extract_image(path, filename):
     """Extract EXIF and format metadata from an image via Pillow."""
     md = {}
@@ -50,16 +94,26 @@ def extract_image(path, filename):
     try:
         exif = img.getexif()
         if exif:
-            from PIL.ExifTags import TAGS
-
             exif_dict = {}
             for tag_id, value in exif.items():
-                tag_name = TAGS.get(tag_id, tag_id)
-                if isinstance(value, bytes):
+                if tag_id == GPS_IFD_TAG:
                     try:
-                        value = value.decode("utf-8", "strict").strip()
-                    except UnicodeDecodeError:
+                        gps_ifd = exif.get_ifd(GPS_IFD_TAG)
+                    except Exception:  # noqa: BLE001
                         continue
+                    gps = {}
+                    for gid, gval in gps_ifd.items():
+                        gval = _clean_exif_value(gval)
+                        if gval is None:
+                            continue
+                        gps[GPSTAGS.get(gid, gid)] = gval
+                    if gps:
+                        exif_dict["GPSInfo"] = gps
+                    continue
+                tag_name = TAGS.get(tag_id, tag_id)
+                value = _clean_exif_value(value)
+                if value is None:
+                    continue
                 exif_dict[tag_name] = value
             if exif_dict:
                 md["exif"] = exif_dict
